@@ -381,3 +381,392 @@ plt.show()
 # This means that when the closing price for one bank is higher than the 
 # previous day, it is generally true that the correlated banks will also be up
 # on the day
+
+"""# **Statistical Analysis**
+
+## **ARIMA**
+
+First, we will create one of the most popular types of Time Series models, ARIMA (Autoregressive Integrated Moving Average). For this model, we need to give the function three parameters - p (The number of lag observations included in the model, also called the lag order), d (The number of times that the raw observations are differenced, also called the degree of differencing) & q (The size of the moving average window, also called the order of moving average).
+"""
+
+# For creating the model
+from statsmodels.tsa.arima_model import ARIMA
+# For creating the grid to tune parameters
+import itertools
+# For rmse (root mean square error)
+from math import sqrt
+from sklearn.metrics import mean_squared_error
+# First we want to find the optimal values of p, d & q
+# We will do this using an AIC (Akaike information criterion) test
+# It should be noted that alone, the value of AIC is basically useless
+# It is only useful to compare multiple values, and the 'optimal' model is the 
+# model with the lowest AIC 
+# Create an array of values for each one and we will test them all to pick 
+# the best one
+p = d = q = range(0, 2)
+# Note, we can make the spaces much smaller but the number of possible 
+# Combinations increases VERY quickly
+pdq = list(itertools.product(p, d, q))
+pdq
+seasonal_pdq = [(x[0], x[1], x[2], 12) for x in 
+                list(itertools.product(p, d, q))]
+
+# We will create a seperate model for each of the banks (we will also pick the
+# optimal values for each bank)
+# Use weekly resamples (again this is only to get rid of the Nan values which
+# appear if we use daily since we don't have data for every day)
+bac = bank_stocks["BAC"]["Close"].resample('W').mean()
+aic = []
+for i in pdq:
+    for j in seasonal_pdq:
+      model = sm.tsa.statespace.SARIMAX(bac, order = i, seasonal_order = j)
+      results = model.fit()
+      aic.append(results.aic)
+      print('ARIMA{} x {} - AIC: {}'.format(i, j, results.aic))
+
+# What is the lowest aic?
+np.min(aic)
+# This occurs with ARIMA(1, 1, 1 ) x (0, 0, 0, 12) so these are our optimal
+# values for BAC
+# We will do a similar process for every other bank too
+
+# CitiGroup
+c = bank_stocks["C"]["Close"].resample('W').mean()
+aic = []
+for i in pdq:
+    for j in seasonal_pdq:
+      model = sm.tsa.statespace.SARIMAX(c, order = i, seasonal_order = j)
+      results = model.fit()
+      aic.append(results.aic)
+      print('ARIMA{} x {} - AIC: {}'.format(i, j, results.aic))
+
+# What is the minimum aic and where does it occur?
+np.min(aic)
+# Occurs at ARIMA(1, 1, 0) x (1, 1, 1, 12)
+
+# GS
+gs = bank_stocks["GS"]["Close"].resample('W').mean()
+aic = []
+for i in pdq:
+    for j in seasonal_pdq:
+      model = sm.tsa.statespace.SARIMAX(gs, order = i, seasonal_order = j)
+      results = model.fit()
+      aic.append(results.aic)
+      print('ARIMA{} x {} - AIC: {}'.format(i, j, results.aic))
+
+np.min(aic)
+# Occurs at ARIMA(0, 1, 1) x (0, 1, 1, 12)
+
+# JPM
+jpm = bank_stocks["JPM"]["Close"].resample('W').mean()
+aic = []
+for i in pdq:
+    for j in seasonal_pdq:
+      model = sm.tsa.statespace.SARIMAX(jpm, order = i, seasonal_order = j)
+      results = model.fit()
+      aic.append(results.aic)
+      print('ARIMA{} x {} - AIC: {}'.format(i, j, results.aic))
+
+np.min(aic)
+# Occurs at ARIMA(0, 1, 1) x (0, 0, 0, 12)
+
+# MS
+ms = bank_stocks["MS"]["Close"].resample('W').mean()
+aic = []
+for i in pdq:
+    for j in seasonal_pdq:
+      model = sm.tsa.statespace.SARIMAX(ms, order = i, seasonal_order = j)
+      results = model.fit()
+      aic.append(results.aic)
+      print('ARIMA{} x {} - AIC: {}'.format(i, j, results.aic))
+
+np.min(aic)
+# Occurs at ARIMA(0, 1, 1) x (0, 0, 1, 12)
+
+# WFC
+wfc = bank_stocks["WFC"]["Close"].resample('W').mean()
+aic = []
+for i in pdq:
+    for j in seasonal_pdq:
+      model = sm.tsa.statespace.SARIMAX(wfc, order = i, seasonal_order = j)
+      results = model.fit()
+      aic.append(results.aic)
+      print('ARIMA{} x {} - AIC: {}'.format(i, j, results.aic))
+
+np.min(aic)
+# Occurs at ARIMA(0, 1, 1) x (1, 0, 1, 12)
+
+# Ok, perfect, now that we are done the tuning portion, we will create the 
+# optimal model for each of the banks and then we will try forecasting the 
+# stock prices
+# We will feed the model all of our data but we will try to make our model 
+# predict some values for data that we already have and then we will also make
+# it predict some values in the future 
+# So the optimal values for the banks are the following 
+# (In the format of (order, seasonal_order))
+# BAC - (1, 1, 1), (0, 0, 0, 12)
+# C - (1, 1, 0), (1, 1, 1, 12)
+# GS - (0, 1, 1), (0, 1, 1, 12)
+# JPM - (0, 1, 1), (0, 0, 0, 12)
+# MS - (0, 1, 1), (0, 0, 1, 12)
+# WFC - (0, 1, 1), (1, 0, 1, 12)
+
+# What we want to see is how well does our model predict the stock prices
+# So, this is more of a machine learning process rather than a statistical 
+# approch. Therefore, rather than training the models on the whole data, like
+# we used to find our parameters, we will train the models on our training set
+# and we will test the results on the test set. For our training set, we will
+# use all of the data up to, and including, 2017. Then, we will test our models
+# on the 2018 & 2019 data
+# Create the training sets
+bac_training = bank_stocks["BAC"]["Close"].loc["2006-01-01":"2018-01-01"].\
+               resample('W').mean()
+c_training = bank_stocks["C"]["Close"].loc["2006-01-01":"2018-01-01"].\
+             resample('W').mean()
+gs_training = bank_stocks["GS"]["Close"].loc["2006-01-01":"2018-01-01"].\
+              resample('W').mean()
+jpm_training = bank_stocks["JPM"]["Close"].loc["2006-01-01":"2018-01-01"].\
+               resample('W').mean()
+ms_training = bank_stocks["MS"]["Close"].loc["2006-01-01":"2018-01-01"].\
+              resample('W').mean()
+wfc_training = bank_stocks["WFC"]["Close"].loc["2006-01-01":"2018-01-01"].\
+               resample('W').mean()
+# Let's create the models now 
+bac_arima_model = sm.tsa.statespace.SARIMAX(bac_training, order = (1, 1, 1), 
+                                            seasonal_order = (0, 0, 0, 12))
+c_arima_model = sm.tsa.statespace.SARIMAX(c_training, order = (1, 1, 0), 
+                                            seasonal_order = (1, 1, 1, 12))
+gs_arima_model = sm.tsa.statespace.SARIMAX(gs_training, order = (0, 1, 1), 
+                                            seasonal_order = (0, 1, 1, 12))
+jpm_arima_model = sm.tsa.statespace.SARIMAX(jpm_training, order = (0, 1, 1), 
+                                            seasonal_order = (0, 0, 0, 12))
+ms_arima_model = sm.tsa.statespace.SARIMAX(ms_training, order = (0, 1, 1), 
+                                            seasonal_order = (0, 0, 1, 12))
+wfc_arima_model = sm.tsa.statespace.SARIMAX(wfc_training, order = (0, 1, 1), 
+                                            seasonal_order = (1, 0, 1, 12))
+
+# Ok, now that we created the models, let's see how they perform
+# Rather than exploring the summary tables for all of them, we will pick one
+# Bank and just explore that
+# When we forecast the results, however, we will see how the model performs for 
+# each bank
+# Note, the AIC for this model will be different than before because we used
+# the whole dataset before and now, to forecast, we are using the training set
+print(bac_arima_model.fit(disp=0).summary())
+# P-values are all very low (not actually 0 but rounds to 0 with the given 
+# decimal values) which is a good sign
+# We will check the rmse for each of the banks (after we forecast the results)
+# and see which one if the highest (and lowest)
+# Note: Goldman Sachs has the highest stock price so we would (kind of) expect
+# that rmse to be the highest. For the rest of the stocks, the prices are 
+# relatively similar so seeing which one is the highest/lowest for those banks
+# will be much more interesting.
+
+bac_arima_fit = bac_arima_model.fit(disp = False)
+bac_pred = bac_arima_fit.get_forecast(steps = 100)
+bac_ci = bac_pred.conf_int()
+
+plt.figure(figsize = (12, 4), dpi = 300)
+ax = bac.plot(label = 'observed', figsize=(12, 4), color = "black")
+bac_pred.predicted_mean.plot(ax = ax, label = 'Forecast', color = "cyan")
+ax.fill_between(bac_ci.index, bac_ci.iloc[:, 0], bac_ci.iloc[:, 1], color = 'k', 
+                alpha = .25)
+plt.legend()
+plt.show()
+
+# Ok so clearly something went wrong. Maybe we didn't tune our parameters 
+# correctly. We only tried a handful of values because it takes a long time to
+# run, but to try to make a better model, let's try to retune the parameters
+# We will only try for BAC initially and see how that goes (hopefully it is 
+# better than this)
+
+# Ok so I tried running with p for 0, 1, 2, 3, 4
+# d for 0, 1, 2
+# q for 0, 1, 2
+# And that takes a VERY long time, :(, so we will set some restrictions
+# We won't test for p to be 4 so only p for 0, 1, 2, 3
+# We also won't let d or q to be 0
+# This is a reasonable assumption because when we did the tuning of parameters
+# before, we barely got values of 0 (for the seasonal order there were
+# a couple but we can see from the decomposition plots that seasonal doesn't
+# play too large of a role)
+p = range(0, 4)
+d = range(1, 3)
+q = range(1, 3)
+
+pdq = list(itertools.product(p, d, q))
+pdq
+seasonal_pdq = [(x[0], x[1], x[2], 12) for x in 
+                list(itertools.product(p, d, q))]
+
+# We will create a seperate model for each of the banks (we will also pick the
+# optimal values for each bank)
+# Use weekly resamples (again this is only to get rid of the Nan values which
+# appear if we use daily since we don't have data for every day)
+bac = bank_stocks["BAC"]["Close"].resample('W').mean()
+aic = []
+for i in pdq:
+    for j in seasonal_pdq:
+      # Sometimes the program crashes so we want to bypass those errors
+      try:
+        model = sm.tsa.statespace.SARIMAX(bac, order = i, seasonal_order = j)
+        results = model.fit()
+        aic.append(results.aic)
+        print('ARIMA{} x {} - AIC: {}'.format(i, j, results.aic))
+      except: # Catch all exceptions 
+        pass
+
+# Ok so this is a VERY long process and we don't want to do this for every bank
+# so for the sake of time, I will only find one set of p, d & q, and use that 
+# for every bank. I know this is not the best way to do this, and if you are
+# curious about any specific bank, feel free to run this code and change the
+# name of the bank to create a better model for that specific stock.  
+# For BAC, our lowest AIC value was 2049.4314110650216, so hopefully with this
+# we find a set or parameters that will result in a lower AIC 
+
+# NOTE: I DO NOT RECOMMEND RUNNING THIS CELL. IT TAKES ALMOST 3 HOURS
+# So you can just view the results in the output below
+
+# OK WE'RE DONE 
+# Ok so now let's see what the lowest AIC value is and which set of 
+# parameters get us that value
+np.min(aic)
+# Ok so this is higher than our other AIC 
+# Use np.argmin(aic) to find the index
+# ARIMA(0, 1, 2) x (0, 1, 1, 12)
+# Why?
+# Well because of our restrictions (d & p can't be 0), it probably 
+# through something off. That's ok, let's see if this does a better job
+# in predicting our results. For the other banks. We will compare this set
+# of parameters to the ones we got before and pick the one with the lower
+# AIC for the final model
+
+# Let's plot this and see what happens
+bac_arima_model2 = sm.tsa.statespace.SARIMAX(bac_training, order = (1, 1, 1), 
+                                            seasonal_order = (0, 0, 0, 12))
+
+bac_arima_fit2 = bac_arima_model2.fit(disp = False)
+bac_pred = bac_arima_fit2.get_forecast(steps = 100)
+bac_ci = bac_pred.conf_int()
+
+plt.figure(figsize = (12, 4), dpi = 300)
+ax = bac.plot(label = 'Close Price', figsize=(12, 4), color = "black")
+bac_pred.predicted_mean.plot(ax = ax, label = 'Forecast', color = "tab:cyan")
+bank_stocks["BAC"]["Close"].rolling(window = 30).mean().\
+  plot(label = "30 Day Rolling Average", color = "tab:blue")
+ax.fill_between(bac_ci.index, bac_ci.iloc[:, 0], bac_ci.iloc[:, 1], color = 'k', 
+                alpha = .25)
+plt.xlabel("Date")
+plt.ylabel("Closing Price")
+plt.title("Bank of America Closing Price and Forecasted Price")
+plt.legend()
+plt.show()
+# Well, that was kind of anticlimactic :(
+# So we will actually just leave the parameters the same for each bank and just
+# show our results.
+# Later, we will try to use the Prophet package from Facebook to fit these 
+# results so hopefully that will give us better results
+
+# CitiGroup
+# We will actually just use the old results because that is probably a better
+# model since it was tuned for these datasets specifically
+
+c_arima_fit = c_arima_model.fit(disp = False)
+c_pred = c_arima_fit.get_forecast(steps = 100)
+c_ci = c_pred.conf_int()
+c = bank_stocks["C"]["Close"].resample('W').mean()
+
+plt.figure(figsize = (12, 4), dpi = 300)
+ax = c.plot(label = 'Close Price', figsize=(12, 4), color = "black")
+c_pred.predicted_mean.plot(ax = ax, label = 'Forecast', color = "tab:cyan")
+bank_stocks["C"]["Close"].rolling(window = 30).mean().\
+  plot(label = "30 Day Rolling Average", color = "tab:orange")
+ax.fill_between(c_ci.index, c_ci.iloc[:, 0], c_ci.iloc[:, 1], color = 'k', 
+                alpha = .25)
+plt.xlabel("Date")
+plt.ylabel("Closing Price")
+plt.title("CitiGroup Closing Price and Forecasted Price")
+plt.legend()
+plt.show()
+
+# Goldman Sachs
+# We will actually just use the old results because that is probably a better
+# model since it was tuned for these datasets specifically
+
+gs_arima_fit = gs_arima_model.fit(disp = False)
+gs_pred = gs_arima_fit.get_forecast(steps = 100)
+gs_ci = gs_pred.conf_int()
+gs = bank_stocks["GS"]["Close"].resample('W').mean()
+
+plt.figure(figsize = (12, 4), dpi = 300)
+ax = gs.plot(label = 'Close Price', figsize=(12, 4), color = "black")
+gs_pred.predicted_mean.plot(ax = ax, label = 'Forecast', color = "tab:cyan")
+bank_stocks["GS"]["Close"].rolling(window = 30).mean().\
+  plot(label = "30 Day Rolling Average", color = "tab:green")
+ax.fill_between(gs_ci.index, gs_ci.iloc[:, 0], gs_ci.iloc[:, 1], color = 'k', 
+                alpha = .25)
+plt.xlabel("Date")
+plt.ylabel("Closing Price")
+plt.title("Goldman Sachs Closing Price and Forecasted Price")
+plt.legend()
+plt.show()
+# This one is not good, clearly it expects the trend to increase
+
+# JPMorgan
+jpm_arima_fit = jpm_arima_model.fit(disp = False)
+jpm_pred = jpm_arima_fit.get_forecast(steps = 100)
+jpm_ci = jpm_pred.conf_int()
+jpm = bank_stocks["JPM"]["Close"].resample('W').mean()
+
+plt.figure(figsize = (12, 4), dpi = 300)
+ax = jpm.plot(label = 'Close Price', figsize=(12, 4), color = "black")
+jpm_pred.predicted_mean.plot(ax = ax, label = 'Forecast', color = "tab:cyan")
+bank_stocks["JPM"]["Close"].rolling(window = 30).mean().\
+  plot(label = "30 Day Rolling Average", color = "tab:red")
+ax.fill_between(jpm_ci.index, jpm_ci.iloc[:, 0], jpm_ci.iloc[:, 1], color = 'k', 
+                alpha = .25)
+plt.xlabel("Date")
+plt.ylabel("Closing Price")
+plt.title("JPMorgan Closing Price and Forecasted Price")
+plt.legend()
+plt.show()
+
+# Morgan Stanley
+ms_arima_fit = ms_arima_model.fit(disp = False)
+ms_pred = ms_arima_fit.get_forecast(steps = 100)
+ms_ci = ms_pred.conf_int()
+ms = bank_stocks["MS"]["Close"].resample('W').mean()
+
+plt.figure(figsize = (12, 4), dpi = 300)
+ax = ms.plot(label = 'Close Price', figsize=(12, 4), color = "black")
+ms_pred.predicted_mean.plot(ax = ax, label = 'Forecast', color = "tab:cyan")
+bank_stocks["MS"]["Close"].rolling(window = 30).mean().\
+  plot(label = "30 Day Rolling Average", color = "tab:purple")
+ax.fill_between(ms_ci.index, ms_ci.iloc[:, 0], ms_ci.iloc[:, 1], color = 'k', 
+                alpha = .25)
+plt.xlabel("Date")
+plt.ylabel("Closing Price")
+plt.title("Morgan Stanley Closing Price and Forecasted Price")
+plt.legend()
+plt.show()
+
+# Wells Fargo
+wfc_arima_fit = wfc_arima_model.fit(disp = False)
+wfc_pred = wfc_arima_fit.get_forecast(steps = 100)
+wfc_ci = wfc_pred.conf_int()
+wfc = bank_stocks["WFC"]["Close"].resample('W').mean()
+
+plt.figure(figsize = (12, 4), dpi = 300)
+ax = wfc.plot(label = 'Close Price', figsize=(12, 4), color = "black")
+wfc_pred.predicted_mean.plot(ax = ax, label = 'Forecast', color = "tab:cyan")
+bank_stocks["WFC"]["Close"].rolling(window = 30).mean().\
+  plot(label = "30 Day Rolling Average", color = "tab:brown")
+ax.fill_between(wfc_ci.index, wfc_ci.iloc[:, 0], wfc_ci.iloc[:, 1], color = 'k', 
+                alpha = .25)
+plt.xlabel("Date")
+plt.ylabel("Closing Price")
+plt.title("Wells Fargo Closing Price and Forecasted Price")
+plt.legend()
+plt.show()
+
+"""Ok, so what happened? Well if we take a look at the decomposed plots, we see that a lot of the variability comes from the residual plot. If we only take a look at the trend and the seasonal plots, and then take a look at the forecasted prices, it isn't that bad. The problem is that we need the model to try and do a better job predicting the residual (which probably won't happen because we can't predict stock prices). BUT, we will try and do a better job than this in the future when we use the Prophet package which was developed by Facebook. """
