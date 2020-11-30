@@ -24,3 +24,14 @@ We also take a look at a 7-day and 30-day moving average for the stocks. These p
 ### [ARIMA Model](https://www.statsmodels.org/stable/generated/statsmodels.tsa.statespace.sarimax.SARIMAX.html?)  
 
 For the first model which we create, we use an AutoRegressive Integrated Moving Average. This helps us predict time series models using moving averages. We tune the parameters of the model using an AIC test. For each bank, we train the model using the data from 2006 to 2017 (inclusive) and create a model to forecast the 2018 & 2019 stock prices. 
+
+
+## Time_Series.pdf  
+In this paper, we will explore Time-Series Regression. Rather than just creating a variety of time series models and trying to fit them on the bank stocks' data, we will delve into the theory of Time Series - breaking down the models to their mathematical forms and explaining the parameters and their effects to the models. 
+
+## Acknowledgements  
+For this entire paper, I used the textbook [*Time Series Analysis and
+Its Applications With R Examples*](https://www.springer.com/gp/book/9783319524511) for a deeper understanding of time series and their applications. It is a wonderful textbook that introduces the concepts in a digestible manner while also using plots to further help with the intuition behind many models.   
+Also, for performing the ARIMA model and tuning the hyperparameters, I used the following websites:  
+* https://machinelearningmastery.com/arima-for-time-series-forecasting-with-python/
+* https://machinelearningmastery.com/grid-search-arima-hyperparameters-with-python/
