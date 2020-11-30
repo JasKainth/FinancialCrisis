@@ -32,6 +32,6 @@ In this paper, we will explore Time-Series Regression. Rather than just creating
 ## Acknowledgements  
 For this entire paper, I used the textbook [*Time Series Analysis and
 Its Applications With R Examples*](https://www.springer.com/gp/book/9783319524511) for a deeper understanding of time series and their applications. It is a wonderful textbook that introduces the concepts in a digestible manner while also using plots to further help with the intuition behind many models.   
-Also, for performing the ARIMA model and tuning the hyperparameters, I used the following websites:  
+Also, for fitting the ARIMA model and tuning the hyperparameters, I used the following websites:  
 * https://machinelearningmastery.com/arima-for-time-series-forecasting-with-python/
 * https://machinelearningmastery.com/grid-search-arima-hyperparameters-with-python/
